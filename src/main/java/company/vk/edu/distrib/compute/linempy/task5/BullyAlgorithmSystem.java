@@ -24,22 +24,18 @@ public final class BullyAlgorithmSystem {
         Thread.sleep(5000);
         printStatus(nodes);
 
-        // TEST 1: LEADER FAILURE
         runLeaderFailureTest(nodes);
         Thread.sleep(8000);
         printStatus(nodes);
 
-        // TEST 2: NODE RECOVERY
         runNodeRecoveryTest(nodes);
         Thread.sleep(8000);
         printStatus(nodes);
 
-        // TEST 3: GRACEFUL SHUTDOWN
         runGracefulShutdownTest(nodes);
         Thread.sleep(5000);
         printStatus(nodes);
 
-        // TEST 4: RANDOM FAILURES AND RECOVERIES
         runRandomFailuresTest(nodes);
         Thread.sleep(10000);
         printStatus(nodes);
@@ -61,17 +57,17 @@ public final class BullyAlgorithmSystem {
         nodes.values().forEach(threadPool::submit);
     }
 
-    private static void runLeaderFailureTest(Map<Integer, Node> nodes) throws InterruptedException {
+    private static void runLeaderFailureTest(Map<Integer, Node> nodes) {
         printTestHeader("TEST 1: LEADER FAILURE (Node 5)");
         nodes.get(5).setStatus(false);
     }
 
-    private static void runNodeRecoveryTest(Map<Integer, Node> nodes) throws InterruptedException {
+    private static void runNodeRecoveryTest(Map<Integer, Node> nodes) {
         printTestHeader("TEST 2: NODE RECOVERY (Node 5)");
         nodes.get(5).setStatus(true);
     }
 
-    private static void runGracefulShutdownTest(Map<Integer, Node> nodes) throws InterruptedException {
+    private static void runGracefulShutdownTest(Map<Integer, Node> nodes) {
         printTestHeader("TEST 3: GRACEFUL SHUTDOWN (Current Leader)");
         final int currentLeader = findLeader(nodes);
         if (currentLeader != -1) {

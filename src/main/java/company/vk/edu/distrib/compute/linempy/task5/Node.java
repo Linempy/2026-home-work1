@@ -74,12 +74,20 @@ public class Node implements Runnable {
     }
 
     private void log(String level, String msg, String color) {
-        System.out.printf("%s[Node %d] [%-8s] %s%s\n", color, id, level, msg, RESET);
+        if (isLoggingEnabled()) {
+            System.out.printf("%s[Node %d] [%-8s] %s%s\n", color, id, level, msg, RESET);
+        }
     }
 
     private void logWithDuration(String level, String msg, String color, long duration) {
-        System.out.printf("%s[Node %d] [%-8s] %s (duration: %d ms)%s\n",
-                color, id, level, msg, duration, RESET);
+        if (isLoggingEnabled()) {
+            System.out.printf("%s[Node %d] [%-8s] %s (duration: %d ms)%s\n",
+                    color, id, level, msg, duration, RESET);
+        }
+    }
+
+    private boolean isLoggingEnabled() {
+        return true;
     }
 
     public void setStatus(boolean status) {
@@ -166,39 +174,43 @@ public class Node implements Runnable {
         }
     }
 
-    private synchronized void startElection() {
-        if (!active.get() || electionInProgress.get()) {
-            return;
-        }
+    private void startElection() {
+        final Object lock = this;
+        synchronized (lock) {
+            if (!active.get() || electionInProgress.get()) {
+                return;
+            }
 
-        final long now = System.currentTimeMillis();
-        final long elapsed = now - lastElectionTime.get();
-        if (elapsed < MIN_ELECTION_INTERVAL) {
-            log(ELECT_MSG, "Too frequent elections, skipping.", YELLOW);
-            return;
-        }
-        lastElectionTime.set(now);
+            final long now = System.currentTimeMillis();
+            final long elapsed = now - lastElectionTime.get();
+            if (elapsed < MIN_ELECTION_INTERVAL) {
+                log(ELECT_MSG, "Too frequent elections, skipping.", YELLOW);
+                return;
+            }
+            lastElectionTime.set(now);
 
-        final long electionStartTime = now;
-        log(ELECT_MSG, "Starting leader election (Bully algorithm)...", YELLOW);
-        electionInProgress.set(true);
-        cancelElectionTimeout();
+            final long electionStartTime = now;
+            log(ELECT_MSG, "Starting leader election (Bully algorithm)...", YELLOW);
+            electionInProgress.set(true);
+            cancelElectionTimeout();
 
-        final boolean higherExists = checkHigherNodes();
-        if (!higherExists) {
-            becomeLeader(electionStartTime);
-        } else {
-            scheduleElectionTimeout(electionStartTime);
+            final boolean higherExists = checkHigherNodes();
+            if (!higherExists) {
+                becomeLeader(electionStartTime);
+            } else {
+                scheduleElectionTimeout(electionStartTime);
+            }
         }
     }
 
     private boolean checkHigherNodes() {
         boolean higherExists = false;
+        final Message electMsg = new Message(MessageType.ELECT, this.id);
         for (Integer otherId : cluster.keySet()) {
             final Node otherNode = cluster.get(otherId);
             if (otherId > this.id && otherNode != null && otherNode.isActive()) {
                 higherExists = true;
-                sendTo(otherId, new Message(MessageType.ELECT, this.id));
+                sendTo(otherId, electMsg);
                 log(ELECT_MSG, "Sent ELECT to node " + otherId, CYAN);
             }
         }
@@ -230,8 +242,11 @@ public class Node implements Runnable {
         electionTimeoutTask = scheduler.schedule(() -> {
             if (active.get() && electionInProgress.get()) {
                 final long duration = System.currentTimeMillis() - startTime;
-                logWithDuration(ELECT_MSG, "Higher nodes did not respond. Becoming leader.",
-                        YELLOW, duration);
+                if (isLoggingEnabled()) {
+                    System.out.printf("%s[Node %d] [%-8s] Higher nodes did not respond. Becoming leader. "
+                                    + "(duration: %d ms)%s\n",
+                            YELLOW, id, ELECT_MSG, duration, RESET);
+                }
                 becomeLeader(startTime);
             }
         }, ELECTION_TIMEOUT, TimeUnit.MILLISECONDS);
