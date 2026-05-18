@@ -150,7 +150,6 @@ public class LinempyAuditService implements AuditService {
         }
     }
 
-
     private void processRecords(ConsumerRecords<String, String> records) {
         boolean hasNewEvents = false;
         for (ConsumerRecord<String, String> record : records) {
