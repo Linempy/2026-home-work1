@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 public final class BullyAlgorithmSystem {
 
     private static final int NODE_COUNT = 5;
+    private static final String PMD_SUPPRESS = "PMD.SystemPrintln";
 
     private BullyAlgorithmSystem() {
     }
@@ -45,11 +46,12 @@ public final class BullyAlgorithmSystem {
         threadPool.shutdownNow();
     }
 
-    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
+    @SuppressWarnings({"SystemPrintln", PMD_SUPPRESS})
     private static void printParameters() {
         System.out.println("Parameters: pingInterval=3s, pingTimeout=5s, electionTimeout=2s\n");
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     private static void createAndStartNodes(Map<Integer, Node> nodes, ExecutorService threadPool) {
         for (int i = 1; i <= NODE_COUNT; i++) {
             final Node node = new Node(i, nodes);
@@ -76,7 +78,7 @@ public final class BullyAlgorithmSystem {
         }
     }
 
-    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
+    @SuppressWarnings({"SystemPrintln", PMD_SUPPRESS})
     private static void runRandomFailuresTest(Map<Integer, Node> nodes) throws InterruptedException {
         printTestHeader("TEST 4: RANDOM FAILURES AND RECOVERIES");
         final int[] failOrder = {3, 1, 4};
@@ -99,17 +101,17 @@ public final class BullyAlgorithmSystem {
         }
     }
 
-    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
+    @SuppressWarnings({"SystemPrintln", PMD_SUPPRESS})
     private static void printMessage(String msg) {
         System.out.println(msg);
     }
 
-    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
+    @SuppressWarnings({"SystemPrintln", PMD_SUPPRESS})
     private static void printTestHeader(String header) {
         System.out.println("\n--- " + header + " ---");
     }
 
-    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
+    @SuppressWarnings({"SystemPrintln", PMD_SUPPRESS})
     private static void printStatus(Map<Integer, Node> nodes) {
         System.out.println("\n------------------------------------");
         System.out.println("CURRENT CLUSTER STATUS:");

@@ -33,8 +33,11 @@ public final class LinempyKafkaLocalApp {
             registerShutdownHook(kv, audit);
             Thread.sleep(Long.MAX_VALUE);
 
-        } catch (InterruptedException | IOException e) {
-            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Application interrupted", e);
+        } catch (IOException e) {
+            log.error("Failed to start application", e);
         }
     }
 

@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -43,7 +44,9 @@ public class LinempyAuditableKVService extends KVServiceImpl implements Auditabl
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
 
         this.producer = new KafkaProducer<>(props);
-        log.info("AuditableKVService started, bootstrapServers={}", bootstrapServers);
+        if (log.isInfoEnabled()) {
+            log.info("AuditableKVService started, bootstrapServers={}", bootstrapServers);
+        }
 
     }
 
@@ -56,7 +59,9 @@ public class LinempyAuditableKVService extends KVServiceImpl implements Auditabl
     @Override
     public void setAsync(boolean async) {
         asyncMode.set(async);
-        log.info("Audit mode set to: {}", async ? "async" : "sync");
+        if (log.isInfoEnabled()) {
+            log.info("Audit mode set to: {}", async ? "async" : "sync");
+        }
     }
 
     @Override
@@ -75,26 +80,45 @@ public class LinempyAuditableKVService extends KVServiceImpl implements Auditabl
             log.warn("Audit producer is not configured, event skipped");
             return;
         }
+
         try {
             AuditEvent event = new AuditEvent(method, id, timestamp);
-            ProducerRecord<String, String> record =
-                    new ProducerRecord<>(TOPIC, id, AuditEventCodecUtils.serialize(event));
+            ProducerRecord<String, String> record = new ProducerRecord<>(
+                    TOPIC, id, AuditEventCodecUtils.serialize(event)
+            );
 
             if (asyncMode.get()) {
-                producer.send(record, (metadata, exception) -> {
-                    if (exception != null) {
-                        log.error("Failed to send audit event asynchronously", exception);
-                    } else {
-                        log.debug("Audit event sent to {}:{}", metadata.topic(), metadata.offset());
-                    }
-                });
+                sendAsync(record);
             } else {
-                Future<RecordMetadata> future = producer.send(record);
-                RecordMetadata metadata = future.get();
-                log.debug("Audit event sent to {}:{} (sync)", metadata.topic(), metadata.offset());
+                sendSync(record);
             }
         } catch (Exception e) {
             log.error("Failed to send audit event", e);
+        }
+    }
+
+    private void sendAsync(ProducerRecord<String, String> record) {
+        producer.send(record, (metadata, exception) -> {
+            if (exception != null) {
+                log.error("Failed to send audit event asynchronously", exception);
+            } else if (log.isDebugEnabled()) {
+                log.debug("Audit event sent to {}:{}", metadata.topic(), metadata.offset());
+            }
+        });
+    }
+
+    private void sendSync(ProducerRecord<String, String> record) {
+        try {
+            Future<RecordMetadata> future = producer.send(record);
+            RecordMetadata metadata = future.get();
+            if (log.isDebugEnabled()) {
+                log.debug("Audit event sent to {}:{} (sync)", metadata.topic(), metadata.offset());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Interrupted while waiting for Kafka response", e);
+        } catch (ExecutionException e) {
+            log.error("Failed to send audit event synchronously", e);
         }
     }
 
@@ -103,7 +127,6 @@ public class LinempyAuditableKVService extends KVServiceImpl implements Auditabl
         if (producer != null) {
             producer.flush();
             producer.close();
-            producer = null;
         }
         super.stop();
     }

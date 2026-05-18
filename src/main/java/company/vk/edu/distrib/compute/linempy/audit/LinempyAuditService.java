@@ -38,6 +38,7 @@ public class LinempyAuditService implements AuditService {
     private KafkaConsumer<String, String> consumer;
     private Thread consumerThread;
     private final AtomicBoolean running = new AtomicBoolean();
+    private final ReentrantLock startStopLock = new ReentrantLock();
 
     public LinempyAuditService(String bootstrapServers, String storagePath, String consumerGroupId)
             throws IOException {
@@ -48,51 +49,64 @@ public class LinempyAuditService implements AuditService {
     }
 
     @Override
-    public synchronized void start() {
-        if (running.get()) {
-            return;
+    public void start() {
+        startStopLock.lock();
+        try {
+            if (running.get()) {
+                return;
+            }
+
+            Properties props = new Properties();
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
+            props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+            props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+            consumer = new KafkaConsumer<>(props);
+            consumer.subscribe(Collections.singletonList(TOPIC));
+            running.set(true);
+
+            consumerThread = new Thread(this::consumeLoop, "audit-consumer-" + consumerGroupId);
+            consumerThread.setDaemon(true);
+            consumerThread.start();
+            if (log.isInfoEnabled()) {
+                log.info("AuditService started, groupId={}", consumerGroupId);
+            }
+        } finally {
+            startStopLock.unlock();
         }
-
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-
-        consumer = new KafkaConsumer<>(props);
-        consumer.subscribe(Collections.singletonList(TOPIC));
-        running.set(true);
-
-        consumerThread = new Thread(this::consumeLoop, "audit-consumer-" + consumerGroupId);
-        consumerThread.setDaemon(true);
-        consumerThread.start();
-        log.info("AuditService started, groupId={}", consumerGroupId);
     }
 
     @Override
-    public synchronized void stop() {
-        if (!running.getAndSet(false)) {
-            return;
-        }
-
-        if (consumer != null) {
-            consumer.wakeup();
-        }
-        if (consumerThread != null) {
-            try {
-                consumerThread.join(Duration.ofSeconds(5).toMillis());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+    public void stop() {
+        startStopLock.lock();
+        try {
+            if (!running.getAndSet(false)) {
+                return;
             }
+
+            if (consumer != null) {
+                consumer.wakeup();
+            }
+            if (consumerThread != null) {
+                try {
+                    consumerThread.join(Duration.ofSeconds(5).toMillis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            if (consumer != null) {
+                consumer.close();
+            }
+            if (log.isInfoEnabled()) {
+                log.info("AuditService stopped, groupId={}", consumerGroupId);
+            }
+        } finally {
+            startStopLock.unlock();
         }
-        if (consumer != null) {
-            consumer.close();
-            consumer = null;
-        }
-        consumerThread = null;
-        log.info("AuditService stopped, groupId={}", consumerGroupId);
     }
 
     @Override
@@ -109,26 +123,33 @@ public class LinempyAuditService implements AuditService {
         try {
             while (running.get()) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(200));
-                if (records.isEmpty()) {
-                    continue;
+                if (!records.isEmpty()) {
+                    processRecords(records);
                 }
-
-                processRecords(records);
             }
         } catch (WakeupException e) {
-            if (running.get()) {
-                log.error("Audit consumer wakeup error", e);
-            }
+            handleWakeupException(e);
         } catch (Exception e) {
             log.error("Audit consumer failed", e);
         } finally {
-            try {
-                consumer.commitSync();
-            } catch (Exception e) {
-                log.debug("Final offset commit skipped: {}", e.getMessage());
-            }
+            commitFinalOffset();
         }
     }
+
+    private void handleWakeupException(WakeupException e) {
+        if (running.get()) {
+            log.error("Audit consumer wakeup error", e);
+        }
+    }
+
+    private void commitFinalOffset() {
+        try {
+            consumer.commitSync();
+        } catch (Exception e) {
+            log.debug("Final offset commit skipped: {}", e.getMessage());
+        }
+    }
+
 
     private void processRecords(ConsumerRecords<String, String> records) {
         boolean hasNewEvents = false;
@@ -137,7 +158,9 @@ public class LinempyAuditService implements AuditService {
                 appendEvent(AuditEventCodecUtils.deserialize(record.value()));
                 hasNewEvents = true;
             } catch (IOException e) {
-                log.error("Failed to persist audit event", e);
+                if (log.isErrorEnabled()) {
+                    log.error("Failed to persist audit event", e);
+                }
             }
         }
         if (hasNewEvents) {
