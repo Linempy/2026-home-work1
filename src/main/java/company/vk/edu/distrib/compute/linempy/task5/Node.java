@@ -9,6 +9,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Класс Node реализует логику узла в распределенной системе с использованием алгоритма Bully.
@@ -48,6 +49,7 @@ public class Node implements Runnable {
 
     private int currentLeaderId;
     private ScheduledFuture<?> electionTimeoutTask;
+    private final ReentrantLock electionLock = new ReentrantLock();
 
     public Node(int id, Map<Integer, Node> cluster) {
         this.id = id;
@@ -73,12 +75,14 @@ public class Node implements Runnable {
         return currentLeaderId;
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private void log(String level, String msg, String color) {
         if (isLoggingEnabled()) {
             System.out.printf("%s[Node %d] [%-8s] %s%s\n", color, id, level, msg, RESET);
         }
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private void logWithDuration(String level, String msg, String color, long duration) {
         if (isLoggingEnabled()) {
             System.out.printf("%s[Node %d] [%-8s] %s (duration: %d ms)%s\n",
@@ -175,8 +179,8 @@ public class Node implements Runnable {
     }
 
     private void startElection() {
-        final Object lock = this;
-        synchronized (lock) {
+        electionLock.lock();
+        try {
             if (!active.get() || electionInProgress.get()) {
                 return;
             }
@@ -195,11 +199,13 @@ public class Node implements Runnable {
             cancelElectionTimeout();
 
             final boolean higherExists = checkHigherNodes();
-            if (!higherExists) {
-                becomeLeader(electionStartTime);
-            } else {
+            if (higherExists) {
                 scheduleElectionTimeout(electionStartTime);
+            } else {
+                becomeLeader(electionStartTime);
             }
+        } finally {
+            electionLock.unlock();
         }
     }
 
@@ -238,6 +244,7 @@ public class Node implements Runnable {
         }
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private void scheduleElectionTimeout(final long startTime) {
         electionTimeoutTask = scheduler.schedule(() -> {
             if (active.get() && electionInProgress.get()) {

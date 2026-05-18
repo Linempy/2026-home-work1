@@ -3,6 +3,7 @@ package company.vk.edu.distrib.compute.linempy;
 import company.vk.edu.distrib.compute.Dao;
 import company.vk.edu.distrib.compute.KVService;
 import company.vk.edu.distrib.compute.KVServiceFactory;
+import company.vk.edu.distrib.compute.linempy.audit.LinempyAuditableKVService;
 
 import java.io.IOException;
 
@@ -20,6 +21,6 @@ public class LinempyKVServiceFactory extends KVServiceFactory {
     protected KVService doCreate(int port) throws IOException {
         // Dao<byte[]> dao = new PersistentDao(DATA_DIR);
         Dao<byte[]> dao = new DaoImpl<>();
-        return new KVServiceImpl(dao, port);
+        return new LinempyAuditableKVService(dao, port);
     }
 }

@@ -1,5 +1,7 @@
 package company.vk.edu.distrib.compute;
 
+import company.vk.edu.distrib.compute.linempy.LinempyKVServiceFactory;
+import company.vk.edu.distrib.compute.linempy.audit.LinempyAuditServiceFactoryImpl;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -16,6 +18,7 @@ public class AuditServiceFactoryArgumentsProvider implements ArgumentsProvider {
     private final Set<ImmutablePair<Class<? extends KVServiceFactory>, Class<? extends AuditServiceFactory>>>
             factories = Set.of(
     //        ImmutablePair.of(DummyKVServiceFactory.class, AuditServiceFactory.class)
+            ImmutablePair.of(LinempyKVServiceFactory.class, LinempyAuditServiceFactoryImpl.class)
     );
 
     @Override

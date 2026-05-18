@@ -1,0 +1,126 @@
+version: '3.8'
+
+networks:
+  kafka-network:
+    driver: bridge
+
+volumes:
+  kafka-broker-1-data:
+  kafka-broker-2-data:
+  kafka-broker-3-data:
+  kafka-ui-data:
+
+services:
+  kafka-broker-1:
+    image: confluentinc/cp-kafka:7.7.8
+    container_name: kafka-broker-1
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka-broker-1:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    environment:
+      CLUSTER_ID: "z0F2Lg7rQHyRG69BouvQ0g"
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-broker-1:9093,2@kafka-broker-2:9093,3@kafka-broker-3:9093"
+      KAFKA_LISTENERS: "BROKER://kafka-broker-1:9092,HOST://kafka-broker-1:19092,CONTROLLER://kafka-broker-1:9093"
+      KAFKA_ADVERTISED_LISTENERS: "BROKER://kafka-broker-1:9092,HOST://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "BROKER:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "BROKER"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_QUORUM_RETRY_TIMEOUT_MS: 5000
+    volumes:
+      - kafka-broker-1-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+
+  kafka-broker-2:
+    image: confluentinc/cp-kafka:7.7.8
+    container_name: kafka-broker-2
+    restart: unless-stopped
+    ports:
+      - "9094:19092"
+      - "9095:9093"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka-broker-2:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    environment:
+      CLUSTER_ID: "z0F2Lg7rQHyRG69BouvQ0g"
+      KAFKA_NODE_ID: 2
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-broker-1:9093,2@kafka-broker-2:9093,3@kafka-broker-3:9093"
+      KAFKA_LISTENERS: "BROKER://kafka-broker-2:9092,HOST://kafka-broker-2:19092,CONTROLLER://kafka-broker-2:9093"
+      KAFKA_ADVERTISED_LISTENERS: "BROKER://kafka-broker-2:9092,HOST://localhost:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "BROKER:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "BROKER"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_QUORUM_RETRY_TIMEOUT_MS: 5000
+    volumes:
+      - kafka-broker-2-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+
+  kafka-broker-3:
+    image: confluentinc/cp-kafka:7.7.8
+    container_name: kafka-broker-3
+    restart: unless-stopped
+    ports:
+      - "9096:19092"    # HOST listener (через localhost:9096)
+      - "9097:9093"     # CONTROLLER listener
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka-broker-3:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    environment:
+      CLUSTER_ID: "z0F2Lg7rQHyRG69BouvQ0g"
+      KAFKA_NODE_ID: 3
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-broker-1:9093,2@kafka-broker-2:9093,3@kafka-broker-3:9093"
+      KAFKA_LISTENERS: "BROKER://kafka-broker-3:9092,HOST://kafka-broker-3:19092,CONTROLLER://kafka-broker-3:9093"
+      KAFKA_ADVERTISED_LISTENERS: "BROKER://kafka-broker-3:9092,HOST://localhost:9096"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "BROKER:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "BROKER"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_QUORUM_RETRY_TIMEOUT_MS: 5000
+    volumes:
+      - kafka-broker-3-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka-broker-1
+      - kafka-broker-2
+      - kafka-broker-3
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-broker-1:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - kafka-network

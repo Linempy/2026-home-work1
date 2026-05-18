@@ -45,6 +45,7 @@ public final class BullyAlgorithmSystem {
         threadPool.shutdownNow();
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private static void printParameters() {
         System.out.println("Parameters: pingInterval=3s, pingTimeout=5s, electionTimeout=2s\n");
     }
@@ -75,6 +76,7 @@ public final class BullyAlgorithmSystem {
         }
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private static void runRandomFailuresTest(Map<Integer, Node> nodes) throws InterruptedException {
         printTestHeader("TEST 4: RANDOM FAILURES AND RECOVERIES");
         final int[] failOrder = {3, 1, 4};
@@ -97,14 +99,17 @@ public final class BullyAlgorithmSystem {
         }
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private static void printMessage(String msg) {
         System.out.println(msg);
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private static void printTestHeader(String header) {
         System.out.println("\n--- " + header + " ---");
     }
 
+    @SuppressWarnings({"SystemPrintln", "PMD.SystemPrintln"})
     private static void printStatus(Map<Integer, Node> nodes) {
         System.out.println("\n------------------------------------");
         System.out.println("CURRENT CLUSTER STATUS:");
